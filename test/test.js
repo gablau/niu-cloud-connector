@@ -1,26 +1,3 @@
-/* MIT License
- *
- * Copyright (c) 2019 - 2022 Andreas Merkle <web@blue-andi.de>
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
 /** NIU cloud client, used to access the NIU cloud. */
 const niuCloudConnector = require("../index");
 
@@ -35,6 +12,7 @@ var countryCode = "49";
 
 /** Client to access the NIU cloud */
 var client = new niuCloudConnector.Client();
+//client.enableDebugMode(true);
 
 /** NIU vehicles */
 var vehicles = [];
@@ -60,7 +38,7 @@ client.createSessionToken({
         index: 0
     });
 
-    vehicles = result.result.data;
+    vehicles = result.result;
 
     if (0 === vehicles.length) {
 
@@ -81,7 +59,7 @@ client.createSessionToken({
                 sn: vehicles[vehicleIndex].sn
             }).then(function(vehiclePosResult) {
 
-                console.log("\t\tCurrent position: latitude=" + vehiclePosResult.result.data.lat + " longitude=" + vehiclePosResult.result.data.lng);
+                console.log("\t\tCurrent position: latitude=" + vehiclePosResult.result.lat + " longitude=" + vehiclePosResult.result.lng);
                 return Promise.resolve({
                     client: vehiclePosResult.client,
                     index: vehicleResult.index
@@ -102,7 +80,7 @@ client.createSessionToken({
 
 }).then(function(result) {
 
-    var batteries = result.result.data.batteries;
+    var batteries = result.result.batteries;
 
     if ("object" === typeof batteries.compartmentA) {
         console.log("\tBattery " + batteries.compartmentA.bmsId + ": SOC " + batteries.compartmentA.batteryCharging + "%");
@@ -112,7 +90,7 @@ client.createSessionToken({
         console.log("\tBattery " + batteries.compartmentB.bmsId + ": SOC " + batteries.compartmentB.batteryCharging + "%");
     }
 
-    console.log("\tEstimated mileage: " + result.result.data.estimatedMileage);
+    console.log("\tEstimated mileage: " + result.result.estimatedMileage);
 
     console.log("Get battery health ...");
     return result.client.getBatteryHealth({
@@ -121,7 +99,7 @@ client.createSessionToken({
 
 }).then(function(result) {
 
-    var batteries = result.result.data.batteries;
+    var batteries = result.result.batteries;
 
     if ("object" === typeof batteries.compartmentA) {
         console.log("\tBattery " + batteries.compartmentA.bmsId + ": grade " + batteries.compartmentA.gradeBattery + "%");
@@ -138,7 +116,7 @@ client.createSessionToken({
 
 }).then(function(result) {
 
-    console.log("\tCurrent speed: " + result.result.data.nowSpeed);
+    console.log("\tCurrent speed: " + result.result.nowSpeed);
 
     console.log("Get overall tally ...");
     return result.client.getOverallTally({
@@ -147,7 +125,7 @@ client.createSessionToken({
 
 }).then(function(result) {
 
-    console.log("\tTotal mileage: " + result.result.data.totalMileage);
+    console.log("\tTotal mileage: " + result.result.totalMileage);
 
     console.log("Get firmware version ...");
     return result.client.getFirmwareVersion({
@@ -156,7 +134,7 @@ client.createSessionToken({
 
 }).then(function(result) {
 
-    console.log("Current firmware version: " + result.result.data.version);
+    console.log("Current firmware version: " + result.result.version);
 
     console.log("Get a track ...");
     return result.client.getTracks({
@@ -167,11 +145,11 @@ client.createSessionToken({
 
 }).then(function(result) {
 
-    if (0 === result.result.data.length) {
+    if (0 === result.result.length) {
         console.log("\tNo tracks available.");
     } else {
-
-        var track       = result.result.data[0];
+        
+        var track       = result.result.items[0];
         var startTime   = new Date(track.startTime);
         var endTime     = new Date(track.endTime);
 
@@ -186,11 +164,11 @@ client.createSessionToken({
         return result.client.getTrackDetail({
             sn: vehicles[0].sn,
             trackId: track.trackId,
-            trackDate: track.date
+            trackDate: "" + track.date
         }).then(function(result) {
 
             var index       = 0;
-            var trackItems  = result.result.data.trackItems;
+            var trackItems  = result.result.trackItems;
         
             for(index = 0; index < trackItems.length; ++index) {
         

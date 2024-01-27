@@ -1,6 +1,6 @@
 {
   "name": "niu-cloud-connector",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Javascript function API to access the NIU cloud.",
   "main": "index.js",
   "scripts": {
@@ -8,9 +8,29 @@
     "generate-doc-html": "jsdoc index.js -d ./doc/html",
     "generate-doc-md": "jsdoc2md index.js > ./doc/API.md"
   },
-  "author": "Andreas Merkle <web@blue-andi.de>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gablau/niu-cloud-connector.git"
+  },
+  "author": "Gabriele Lauricella <gab.lau@gmail.com> (https://github.com/gablau)",
+  "contributors": [
+    "Andreas Merkle <web@blue-andi.de> (https://github.com/BlueAndi)"
+  ],
   "license": "MIT",
-  "dependencies": {
-    "got": "^11.8.5"
-  }
+  "bugs": {
+    "url": "https://github.com/gablau/niu-cloud-connector/issues"
+  },
+  "homepage": "https://github.com/gablau/niu-cloud-connector",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "niu",
+    "niu-cloud",
+    "e-scooter",
+    "ev",
+    "electric",
+    "scooter",
+    "vehicle"
+  ]
 }
