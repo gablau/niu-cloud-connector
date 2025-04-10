@@ -7,8 +7,6 @@ var account = "";
 /** Password */
 var password = "";
 
-/** Telephone country code, without leading 0s or plus sign. */
-var countryCode = "49";
 
 /** Client to access the NIU cloud */
 var client = new niuCloudConnector.Client();
@@ -21,8 +19,7 @@ console.log("Creating session token ...");
 
 client.createSessionToken({
     account: account,
-    password: password,
-    countryCode: countryCode
+    password: password
 }).then(function(result) {
 
     console.log("\tSession token created: " + result.result);
@@ -145,7 +142,7 @@ client.createSessionToken({
 
 }).then(function(result) {
 
-    if (0 === result.result.length) {
+    if (0 === result.result.items.length) {
         console.log("\tNo tracks available.");
     } else {
         
@@ -164,7 +161,7 @@ client.createSessionToken({
         return result.client.getTrackDetail({
             sn: vehicles[0].sn,
             trackId: track.trackId,
-            trackDate: "" + track.date
+            trackDate: track.date.toString()
         }).then(function(result) {
 
             var index       = 0;

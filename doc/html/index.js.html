@@ -26,34 +26,13 @@
     
     <section>
         <article>
-            <pre class="prettyprint source linenums"><code>/* MIT License
- *
- * Copyright (c) 2019 - 2022 Andreas Merkle &lt;web@blue-andi.de>
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
+            <pre class="prettyprint source linenums"><code>const crypto = require('crypto')
 
 /**
  * NIU cloud connector
  * @namespace
  */
-var niuCloudConnector = {};
+const niuCloudConnector = {};
 
 module.exports = niuCloudConnector;
 
@@ -84,10 +63,13 @@ niuCloudConnector.Client = function() {
     this._acceptLanguage = "en-US";
 
     /** The NIU app version, which the niu-cloud-connector is derrived from. */
-    this._niuAppVersion = "4.6.2";
+    this._niuAppVersion = "4.10.4";
 
     /** User agent, used in HTTP request header. */
     this._userAgent = "manager/" + this._niuAppVersion + " (android; Unknown);brand=Unknown;model=Unknown;clientIdentifier=Overseas;lang=" + this._acceptLanguage;
+
+    /** APP id */
+    this._appId = "niu_ktdrr960";
 };
 
 /**
@@ -190,33 +172,36 @@ niuCloudConnector.Client.prototype.enableDebugMode = function(enableDebugMode) {
  * @param {Object}  data             - Data.
  * @param {string}  data.account     - EMail address or mobile phone number or username.
  * @param {string}  data.password    - Account password.
- * @param {string}  data.countryCode - Telephone country count without leading zeros or + sign, e.g. 49 instead of 0049 or +49.
  * 
  * @returns {Token} Session token.
  */
-niuCloudConnector.Client.prototype.createSessionToken = function(data) {
-    var funcName    = "createSessionToken()";
+niuCloudConnector.Client.prototype.createSessionToken = function(options) {
+    const funcName    = "createSessionToken()";
     var _this       = this;
 
-    if ("object" !== typeof data) {
-        return Promise.reject(this._error("Data is missing.", funcName));
+    if ("object" !== typeof options) {
+        return Promise.reject(this._error("Options is missing.", funcName));
     }
 
-    if ("string" !== typeof data.account) {
+    if ("string" !== typeof options.account) {
         return Promise.reject(this._error("Account is missing.", funcName));
     }
 
-    if ("string" !== typeof data.password) {
+    if ("string" !== typeof options.password) {
         return Promise.reject(this._error("Password is missing.", funcName));
+    } else {
+        /* Password must be sent as md5 hash. */
+        options.password = crypto.createHash('md5').update(options.password).digest('hex');
     }
 
-    if ("string" !== typeof data.countryCode) {
-        return Promise.reject(this._error("Country code is missing.", funcName));
-    }
+    options.grant_type = "password";
+    options.scope = "base";
+    options.app_id = this._appId;
 
-    return fetch(niuCloudConnector.AccountBaseUrl + "/appv2/login", {
+
+    return fetch(niuCloudConnector.AccountBaseUrl + "/v3/api/oauth2/token", {
         method: "POST",
-        body: JSON.stringify(data),
+        body: JSON.stringify(options),
         headers: {
             'Content-type': 'application/json; charset=UTF-8',
           },
@@ -242,11 +227,11 @@ niuCloudConnector.Client.prototype.createSessionToken = function(data) {
             return Promise.reject(_this._error("Token is empty in response.", funcName));
         }
         
-        _this._token = res.data.token;
+        _this._token = res.data.token.access_token;
 
         return Promise.resolve({
             client: _this,
-            result: res.data.token
+            result: res.data.token.access_token
         });
     }).catch((err)=>{
         return Promise.reject(_this._error("Fetch error.", funcName));
@@ -262,7 +247,7 @@ niuCloudConnector.Client.prototype.createSessionToken = function(data) {
  * @returns {Promise} Nothing.
  */
 niuCloudConnector.Client.prototype.setSessionToken = function(options) {
-    var funcName    = "setSessionToken()";
+    const funcName    = "setSessionToken()";
 
     if ("object" !== typeof options) {
         return Promise.reject(this._error("Options is missing.", funcName));
@@ -295,7 +280,7 @@ niuCloudConnector.Client.prototype.setSessionToken = function(options) {
  * @returns {Promise} Requested data.
  */
 niuCloudConnector.Client.prototype._makeRequest = function(options) {
-    var funcName    = "_makeRequest()";
+    const funcName    = "_makeRequest()";
     var _this       = this;
     var reqOptions  = {
         method: "",
@@ -400,6 +385,7 @@ niuCloudConnector.Client.prototype._makeRequest = function(options) {
 /**
  * @typedef {Promise} Vehicles
  * @property {niuCloudConnector.Client} client       - Client
+ * @property {Object}   result                       - Received response
  * @property {Object[]} data                         - Response data
  * @property {string}   data.sn                      - Vehicle serial number
  * @property {string}   data.specialEdition          - ?
@@ -432,6 +418,9 @@ niuCloudConnector.Client.prototype._makeRequest = function(options) {
  * @property {boolean}  data.features.isSupport      - ?
  * @property {string}   data.features.switch_status  - ?
  * @property {string}   data.type                    - Vehicle model, e.g. "NGT  Black with Red Stripes"
+ * @property {string}   result.desc                  - Response status description
+ * @property {string}   result.trace                 - For debug purposes
+ * @property {number}   result.status                - Response status number
  */
 
 /**
@@ -440,7 +429,7 @@ niuCloudConnector.Client.prototype._makeRequest = function(options) {
  * @returns {Vehicles} Vehicles.
  */
 niuCloudConnector.Client.prototype.getVehicles = function() {
-    var funcName = "getVehicles()";
+    const funcName = "getVehicles()";
 
     if (0 === this._token.length) {
         return Promise.reject(this._error("No valid token available.", funcName));
@@ -460,12 +449,16 @@ niuCloudConnector.Client.prototype.getVehicles = function() {
 /**
  * @typedef {Promise} VehiclePos
  * @property {niuCloudConnector.Client} client      - Client
+ * @property {Object}   result                      - Received response
  * @property {Object}   data                        - Response data
  * @property {number}   data.lat                    - Latitude in decimal degree (WGS 84)
  * @property {number}   data.lng                    - Longitude in decimal degree (WGS 84)
  * @property {number}   data.timestamp              - Timestamp in unix timestamp epoch format (13 digits)
  * @property {number}   data.gps                    - ?
  * @property {number}   data.gpsPrecision           - GPS precision
+ * @property {string}   result.desc                 - Response status description
+ * @property {string}   result.trace                - For debug purposes
+ * @property {number}   result.status               - Response status number
  */
 
 /**
@@ -477,7 +470,7 @@ niuCloudConnector.Client.prototype.getVehicles = function() {
  * @returns {VehiclePos} Vehicle position.
  */
 niuCloudConnector.Client.prototype.getVehiclePos = function(options) {
-    var funcName = "getVehiclePos()";
+    const funcName = "getVehiclePos()";
 
     if (0 === this._token.length) {
         return Promise.reject(this._error("No valid token available.", funcName));
@@ -508,10 +501,13 @@ niuCloudConnector.Client.prototype.getVehiclePos = function(options) {
 /**
  * @typedef {Promise} OverallTally
  * @property {niuCloudConnector.Client} client      - Client
- * @property {Object}   data                 - Response data
- * @property {number}   data.bindDaysCount   - Number of days the vehicle is at the customer
- * @property {number}   data.totalMileage    - Total mileage in km
-
+ * @property {Object}   result                      - Received response
+ * @property {Object}   data                        - Response data
+ * @property {number}   data.bindDaysCount          - Number of days the vehicle is at the customer
+ * @property {number}   data.totalMileage           - Total mileage in km
+ * @property {string}   result.desc                 - Response status description
+ * @property {string}   result.trace                - For debug purposes
+ * @property {number}   result.status               - Response status number
  * 
  */
 
@@ -524,7 +520,7 @@ niuCloudConnector.Client.prototype.getVehiclePos = function(options) {
  * @returns {OverallTally} Overall tally.
  */
 niuCloudConnector.Client.prototype.getOverallTally = function(options) {
-    var funcName = "getOverallTally()";
+    const funcName = "getOverallTally()";
 
     if (0 === this._token.length) {
         return Promise.reject(this._error("No valid token available.", funcName));
@@ -555,6 +551,7 @@ niuCloudConnector.Client.prototype.getOverallTally = function(options) {
 /**
  * @typedef {Promise} TrackDetail
  * @property {niuCloudConnector.Client} client      - Client
+ * @property {Object}   result                      - Received response
  * @property {Object}   data                        - Response data
  * @property {Object[]} data.trackItems             - Track items (end point at index 0)
  * @property {number}   data.trackItems.lng         - Longitude in decimal degree (WGS 84)
@@ -568,7 +565,9 @@ niuCloudConnector.Client.prototype.getOverallTally = function(options) {
  * @property {string}   data.lastPoint.lat          - Latitude in decimal degree (WGS 84)
  * @property {string}   data.startTime              - Start time in unix timestamp epoch format (13 digits)
  * @property {string}   data.lastDate               - Last time in unix timestamp epoch format (13 digits)
-
+ * @property {string}   result.desc                 - Response status description
+ * @property {string}   result.trace                - For debug purposes
+ * @property {number}   result.status               - Response status number
  */
 
 /**
@@ -582,7 +581,7 @@ niuCloudConnector.Client.prototype.getOverallTally = function(options) {
  * @returns {TrackDetail} Track detail.
  */
 niuCloudConnector.Client.prototype.getTrackDetail = function(options) {
-    var funcName = "getTrackDetail()";
+    const funcName = "getTrackDetail()";
 
     if (0 === this._token.length) {
         return Promise.reject(this._error("No valid token available.", funcName));
@@ -646,6 +645,7 @@ niuCloudConnector.Client.prototype.getTrackDetail = function(options) {
 /**
  * @typedef {Promise} BatteryInfo
  * @property {niuCloudConnector.Client} client                           - Client
+ * @property {Object}                   result                           - Received response
  * @property {Object}                   data                             - Response data
  * @property {Object}                   data.batteries                   - Batteries
  * @property {CompartmentBatteryInfo}   data.batteries.compartmentA      - Battery of compartment A
@@ -654,6 +654,9 @@ niuCloudConnector.Client.prototype.getTrackDetail = function(options) {
  * @property {string}                   data.centreCtrlBattery           - Centre control battery
  * @property {boolean}                  data.batteryDetail               - Battery detail
  * @property {number}                   data.estimatedMileage            - Estimated mileage in km
+ * @property {string}                   result.desc                      - Response status description
+ * @property {string}                   result.trace                     - For debug purposes
+ * @property {number}                   result.status                    - Response status number
  */
 
 /**
@@ -665,7 +668,7 @@ niuCloudConnector.Client.prototype.getTrackDetail = function(options) {
  * @returns {BatteryInfo} Battery info.
  */
 niuCloudConnector.Client.prototype.getBatteryInfo = function(options) {
-    var funcName = "getBatteryInfo()";
+    const funcName = "getBatteryInfo()";
 
     if (0 === this._token.length) {
         return Promise.reject(this._error("No valid token available.", funcName));
@@ -707,11 +710,15 @@ niuCloudConnector.Client.prototype.getBatteryInfo = function(options) {
 /**
  * @typedef {Promise} BatteryInfoHealth
  * @property {niuCloudConnector.Client}     client                           - Client
+ * @property {Object}                       result                           - Received response
  * @property {Object}                       data                             - Response data
  * @property {Object}                       data.batteries                   - Batteries
  * @property {CompartmentBatteryInfoHealth} data.batteries.compartmentA      - Battery compartment A
  * @property {CompartmentBatteryInfoHealth} [data.batteries.compartmentB]    - Battery compratment B
  * @property {boolean}                      data.isDoubleBattery             - Vehicle has one or two batteries
+ * @property {string}                       result.desc                      - Response status description
+ * @property {string}                       result.trace                     - For debug purposes
+ * @property {number}                       result.status                    - Response status number
  */
 
 /**
@@ -723,7 +730,7 @@ niuCloudConnector.Client.prototype.getBatteryInfo = function(options) {
  * @returns {BatteryInfoHealth} Battery info health.
  */
 niuCloudConnector.Client.prototype.getBatteryHealth = function(options) {
-    var funcName = "getBatteryInfo()";
+    const funcName = "getBatteryHealth()";
 
     if (0 === this._token.length) {
         return Promise.reject(this._error("No valid token available.", funcName));
@@ -757,10 +764,14 @@ niuCloudConnector.Client.prototype.getBatteryHealth = function(options) {
 /**
  * @typedef {Promise} BatteryChart
  * @property {niuCloudConnector.Client}     client                           - Client
+ * @property {Object}                       result                           - Received response
  * @property {Object}                       data                             - Response data
  * @property {BatteryChartData}             data.items1                      - Battery data 1
  * @property {BatteryChartData}             [data.items2]                    - Battery data 2
  * @property {boolean}                      data.isDoubleBattery             - Vehicle has one or two batteries
+ * @property {string}                       result.desc                      - Response status description
+ * @property {string}                       result.trace                     - For debug purposes
+ * @property {number}                       result.status                    - Response status number
  */
 
 /**
@@ -776,7 +787,7 @@ niuCloudConnector.Client.prototype.getBatteryHealth = function(options) {
  * @returns {BatteryChart} Battery chart information.
  */
 niuCloudConnector.Client.prototype.getBatteryChart = function(options) {
-    var funcName = "getBatteryChart()";
+    const funcName = "getBatteryChart()";
 
     if (0 === this._token.length) {
         return Promise.reject(this._error("No valid token available.", funcName));
@@ -828,6 +839,7 @@ niuCloudConnector.Client.prototype.getBatteryChart = function(options) {
 /**
  * @typedef {Promise} MotorData
  * @property {niuCloudConnector.Client} client                       - Client
+ * @property {Object}               result                           - Received response
  * @property {Object}               data                             - Response data
  * @property {number}               data.isCharging                  - Is charging
  * @property {number}               data.lockStatus                  - Lock status
@@ -857,6 +869,9 @@ niuCloudConnector.Client.prototype.getBatteryChart = function(options) {
  * @property {number}               data.lastTrack.ridingTime        - Riding time in s
  * @property {number}               data.lastTrack.distance          - Distance in m
  * @property {number}               data.lastTrack.time              - Timestamp in unix timestamp epoch format (13 digits)
+ * @property {string}               result.desc                      - Response status description
+ * @property {string}               result.trace                     - For debug purposes
+ * @property {number}               result.status                    - Response status number
  */
 
 /**
@@ -868,7 +883,7 @@ niuCloudConnector.Client.prototype.getBatteryChart = function(options) {
  * @returns {MotorData} Motor data.
  */
 niuCloudConnector.Client.prototype.getMotorInfo = function(options) {
-    var funcName = "getMotorInfo()";
+    const funcName = "getMotorInfo()";
 
     if (0 === this._token.length) {
         return Promise.reject(this._error("No valid token available.", funcName));
@@ -896,6 +911,7 @@ niuCloudConnector.Client.prototype.getMotorInfo = function(options) {
 /**
  * @typedef {Promise} Tracks
  * @property {niuCloudConnector.Client} client       - Client
+ * @property {Object}   result                       - Received response
  * @property {Object}   data                         - Response data
  * @property {Object[]} data.items                   - Track items array
  * @property {string}   data.items.id                - Identification number
@@ -916,6 +932,9 @@ niuCloudConnector.Client.prototype.getMotorInfo = function(options) {
  * @property {string}   data.items.track_thumb       - URL to maps thumbnail
  * @property {number}   data.items.power_consumption - Power consumption
  * @property {number}   data.items.meet_count        - Meet count
+ * @property {string}   result.desc                  - Response status description
+ * @property {string}   result.trace                 - For debug purposes
+ * @property {number}   result.status                - Response status number
  */
 
 /**
@@ -929,7 +948,7 @@ niuCloudConnector.Client.prototype.getMotorInfo = function(options) {
  * @returns {Tracks} Tracks.
  */
 niuCloudConnector.Client.prototype.getTracks = function(options) {
-    var funcName = "getTracks()";
+    const funcName = "getTracks()";
 
     if (0 === this._token.length) {
         return Promise.reject(this._error("No valid token available.", funcName));
@@ -976,7 +995,8 @@ niuCloudConnector.Client.prototype.getTracks = function(options) {
 /**
  * @typedef {Promise} FirmwareVersion
  * @property {niuCloudConnector.Client} client      - Client
- * @property {Object[]} data                        - Response data
+ * @property {Object}   result                      - Received response
+ * @property {Object}   data                        - Response data
  * @property {string}   data.nowVersion             - Current version
  * @property {string}   data.version                - Current version
  * @property {string}   data.hardVersion            - Current hard version
@@ -986,7 +1006,9 @@ niuCloudConnector.Client.prototype.getTracks = function(options) {
  * @property {boolean}  data.isSupportUpdate        - Is the update mechanism supported?
  * @property {boolean}  data.needUpdate             - Is update necessary?
  * @property {string}   data.otaDescribe            - Over the air update description
-
+ * @property {string}   result.desc                 - Response status description
+ * @property {string}   result.trace                - For debug purposes
+ * @property {number}   result.status               - Response status number
  */
 
 /**
@@ -998,7 +1020,7 @@ niuCloudConnector.Client.prototype.getTracks = function(options) {
  * @returns {FirmwareVersion} Firmware version.
  */
 niuCloudConnector.Client.prototype.getFirmwareVersion = function(options) {
-    var funcName = "getTracks()";
+    const funcName = "getFirmwareVersion()";
 
     if (0 === this._token.length) {
         return Promise.reject(this._error("No valid token available.", funcName));
@@ -1029,11 +1051,14 @@ niuCloudConnector.Client.prototype.getFirmwareVersion = function(options) {
 /**
  * @typedef {Promise} UpdateInfo
  * @property {niuCloudConnector.Client} client   - Client
- * @property {Object[]} data                     - Response data
+ * @property {Object}   result                   - Received response
+ * @property {Object}   data                     - Response data
  * @property {number}   data.csq                 - ?
  * @property {string}   data.centreCtrlBattery   - Centre control battery
  * @property {number}   data.date                - Current hard version
-
+ * @property {string}   result.desc              - Response status description
+ * @property {string}   result.trace             - For debug purposes
+ * @property {number}   result.status            - Response status number
  */
 
 /**
@@ -1045,7 +1070,7 @@ niuCloudConnector.Client.prototype.getFirmwareVersion = function(options) {
  * @returns {UpdateInfo} Update information.
  */
 niuCloudConnector.Client.prototype.getUpdateInfo = function(options) {
-    var funcName = "getTracks()";
+    const funcName = "getUpdateInfo()";
 
     if (0 === this._token.length) {
         return Promise.reject(this._error("No valid token available.", funcName));
@@ -1088,7 +1113,7 @@ niuCloudConnector.Client.prototype.getUpdateInfo = function(options) {
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.2</a> on Sat Jan 27 2024 11:31:16 GMT+0100 (Ora standard dell’Europa centrale)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.2</a> on Tue Apr 08 2025 23:52:53 GMT+0200 (Ora legale dell’Europa centrale)
 </footer>
 
 <script> prettyPrint(); </script>
